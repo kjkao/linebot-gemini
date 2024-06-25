@@ -7,6 +7,7 @@ import json
 
 import gemini_chat
 import gemini_trans
+import gemini_teach
 
 from linebot.v3 import WebhookHandler
 from linebot.v3.exceptions import InvalidSignatureError
@@ -18,8 +19,7 @@ app = Flask(__name__)
 
 line_secret = os.environ["LINE_BOT_SECRET"]
 access_token = os.environ["LINE_BOT_TOKEN"]
-chatbot = None
-transbot = None
+geminibot = None
 
 configuration = Configuration(access_token=access_token)
 handler = WebhookHandler(line_secret)
@@ -31,6 +31,8 @@ def chat_mode(msg) :
         mode = 1
     elif msg.startswith('mode:trans') :
         mode = 2
+    elif msg.startswith('mode:teach') :
+        mode = 3
     else :
         mode = 0
 
@@ -38,34 +40,38 @@ def chat_mode(msg) :
 
 def proc_msg(msg) :
     global CHAT_MODE
-    global chatbot
-    global transbot
+    global geminibot
 
     if msg.startswith('mode:') :
 
         CHAT_MODE = chat_mode(msg)
 
-        chatbot = None
-        transbot = None
+        geminibot = None
         if CHAT_MODE == 1 :
             reply = "change mode to Chat"
-            chatbot = gemini_chat.ChatBot()
+            geminibot = gemini_chat.ChatBot()
         elif CHAT_MODE == 2 :
             reply = "change mode to Translate"
-            transbot = gemini_trans.TransBot()
+            geminibot = gemini_trans.TransBot()
+        elif CHAT_MODE == 3 :
+            reply = "change mode to English Teacher"
+            geminibot = gemini_teach.TeachBot()
         else :
             reply = msg
     else :
         if CHAT_MODE == 1 :
-            resp = chatbot.send_message(msg)
+            resp = geminibot.send_message(msg)
             reply = "mode:chat\n" + resp
         elif CHAT_MODE == 2 :
-            resp = transbot.send_message(msg)
+            resp = geminibot.send_message(msg)
             reply = "mode:translate\n" + resp
+        elif CHAT_MODE == 3 :
+            resp = geminibot.send_message(msg)
+            reply = "mode:teach\n" + resp
         else :
             reply = msg
-    print(msg, flush=True)
-    print(reply, flush=True)
+    #print(msg, flush=True)
+    #print(reply, flush=True)
     return reply
 
 @app.route("/callback", methods=['POST'])
