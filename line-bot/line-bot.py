@@ -14,64 +14,52 @@ from linebot.v3.exceptions import InvalidSignatureError
 from linebot.v3.messaging import Configuration, ApiClient, MessagingApi, ReplyMessageRequest, TextMessage
 from linebot.v3.webhooks import MessageEvent, TextMessageContent
 
-CHAT_MODE = 0
 app = Flask(__name__)
 
 line_secret = os.environ["LINE_BOT_SECRET"]
 access_token = os.environ["LINE_BOT_TOKEN"]
-geminibot = None
+geminibot = {}
 
 configuration = Configuration(access_token=access_token)
 handler = WebhookHandler(line_secret)
 
 def chat_mode(msg) :
-    mode = 0
+    bot = None
 
     if msg.startswith('mode:chat') :
-        mode = 1
+        bot = gemini_chat.ChatBot()
     elif msg.startswith('mode:trans') :
-        mode = 2
+        bot = gemini_trans.TransBot()
     elif msg.startswith('mode:teach') :
-        mode = 3
-    else :
-        mode = 0
+        bot = gemini_teach.TeachBot()
 
-    return mode
+    return bot
 
-def proc_msg(msg) :
-    global CHAT_MODE
+def proc_msg(evt) :
     global geminibot
 
+    if evt.source.type == 'user' :
+        bothash = evt.source.user_id[:6]
+    elif evt.source.type == 'group' :
+        bothash = evt.source.group_id[:6]
+    else :
+        bothash = 'defbot'
+
+    msg = evt.message.text
     if msg.startswith('mode:') :
 
-        CHAT_MODE = chat_mode(msg)
+        geminibot[bothash] =  chat_mode(msg)
 
-        geminibot = None
-        if CHAT_MODE == 1 :
-            reply = "change mode to Chat"
-            geminibot = gemini_chat.ChatBot()
-        elif CHAT_MODE == 2 :
-            reply = "change mode to Translate"
-            geminibot = gemini_trans.TransBot()
-        elif CHAT_MODE == 3 :
-            reply = "change mode to English Teacher"
-            geminibot = gemini_teach.TeachBot()
+        if bothash in geminibot and geminibot[bothash] :
+            reply = geminibot[bothash].greet()
         else :
             reply = msg
     else :
-        if CHAT_MODE == 1 :
-            resp = geminibot.send_message(msg)
-            reply = "mode:chat\n" + resp
-        elif CHAT_MODE == 2 :
-            resp = geminibot.send_message(msg)
-            reply = "mode:translate\n" + resp
-        elif CHAT_MODE == 3 :
-            resp = geminibot.send_message(msg)
-            reply = "mode:teach\n" + resp
+        if bothash in geminibot and geminibot[bothash] :
+            reply = geminibot[bothash].send_message(msg)
         else :
             reply = msg
-    #print(msg, flush=True)
-    #print(reply, flush=True)
+
     return reply
 
 @app.route("/callback", methods=['POST'])
@@ -95,7 +83,8 @@ def callback():
 @handler.add(MessageEvent, message=TextMessageContent)
 def handle_message(event):
     with ApiClient(configuration) as api_client:
-        reply = proc_msg(event.message.text)
+        #reply = proc_msg(event.message.text)
+        reply = proc_msg(event)
         line_bot_api = MessagingApi(api_client)
         line_bot_api.reply_message_with_http_info(
             ReplyMessageRequest(

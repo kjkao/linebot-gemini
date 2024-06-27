@@ -12,9 +12,12 @@ class TransBot:
         self.model = genai.GenerativeModel(model_name=self.model_name, system_instruction=self.system_instruction, safety_settings=settings.safety_settings, generation_config=settings.generation_config)
         self.chat = self.model.start_chat(history=[])
 
-    def send_message(self, message):
+    def send_message(self, message, prefix = 'mode:translator\n'):
         resp = self.chat.send_message("翻譯以下內容\n\n" + message)
-        return resp.text
+        return prefix + resp.text
+
+    def greet(self):
+        return 'change mode to Translator'
 
 if __name__ == "__main__":
     bot = TransBot()
