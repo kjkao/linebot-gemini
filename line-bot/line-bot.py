@@ -1,13 +1,12 @@
 #!/usr/bin/python3
 
-from flask import Flask, request, abort
-
 import os
 import json
 
-import gemini_chat
-import gemini_trans
-import gemini_teach
+from flask import Flask, request, abort
+from threading import Timer
+
+import gemini_bot
 
 from linebot.v3 import WebhookHandler
 from linebot.v3.exceptions import InvalidSignatureError
@@ -19,6 +18,7 @@ app = Flask(__name__)
 line_secret = os.environ["LINE_BOT_SECRET"]
 access_token = os.environ["LINE_BOT_TOKEN"]
 geminibot = {}
+bot_timer = {}
 
 configuration = Configuration(access_token=access_token)
 handler = WebhookHandler(line_secret)
@@ -27,23 +27,28 @@ def chat_mode(msg) :
     bot = None
 
     if msg.startswith('mode:chat') :
-        bot = gemini_chat.ChatBot()
+        bot = gemini_bot.ChatBot()
     elif msg.startswith('mode:trans') :
-        bot = gemini_trans.TransBot()
+        bot = gemini_bot.TransBot()
     elif msg.startswith('mode:teach') :
-        bot = gemini_teach.TeachBot()
+        bot = gemini_bot.TeachBot()
 
     return bot
 
-def proc_msg(evt) :
-    global geminibot
+def get_hash(evt) :
+    bothash = 'defbot'
 
     if evt.source.type == 'user' :
         bothash = evt.source.user_id[:6]
     elif evt.source.type == 'group' :
         bothash = evt.source.group_id[:6]
-    else :
-        bothash = 'defbot'
+
+    return bothash
+
+def proc_msg(evt) :
+    global geminibot
+
+    bothash = get_hash(evt)
 
     msg = evt.message.text
     if msg.startswith('mode:') :
@@ -61,6 +66,16 @@ def proc_msg(evt) :
             reply = msg
 
     return reply
+
+def shutdown_bot(evt) :
+    global geminibot
+
+    bothash = get_hash(evt)
+
+    if bothash in geminibot and geminibot[bothash] :
+        app.logger.info("shutdown bot geminibot[" + bothash + "]")
+        del(geminibot[bothash])
+        geminibot[bothash] = None
 
 @app.route("/callback", methods=['POST'])
 def callback():
@@ -82,8 +97,9 @@ def callback():
 
 @handler.add(MessageEvent, message=TextMessageContent)
 def handle_message(event):
+    global bot_timer
     with ApiClient(configuration) as api_client:
-        #reply = proc_msg(event.message.text)
+
         reply = proc_msg(event)
         line_bot_api = MessagingApi(api_client)
         line_bot_api.reply_message_with_http_info(
@@ -92,6 +108,12 @@ def handle_message(event):
                 messages=[TextMessage(text=reply)]
             )
         )
+
+        bothash = get_hash(event)
+        if bothash in bot_timer and bot_timer[bothash] :
+            bot_timer[bothash].cancel()
+        bot_timer[bothash] = Timer(900, shutdown_bot, (event,))
+        bot_timer[bothash].start()
 
 if __name__ == "__main__":
     app.run(host='localhost', port=8080, debug=True)
