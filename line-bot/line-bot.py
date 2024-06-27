@@ -10,12 +10,13 @@ import gemini_bot
 
 from linebot.v3 import WebhookHandler
 from linebot.v3.exceptions import InvalidSignatureError
-from linebot.v3.messaging import Configuration, ApiClient, MessagingApi, ReplyMessageRequest, TextMessage
+from linebot.v3.messaging import Configuration, ApiClient, MessagingApi, ReplyMessageRequest, PushMessageRequest, TextMessage
 from linebot.v3.webhooks import MessageEvent, TextMessageContent
 
 app = Flask(__name__)
 
 line_secret = os.environ["LINE_BOT_SECRET"]
+line_userid = os.environ["LINE_BOT_USERID"]
 access_token = os.environ["LINE_BOT_TOKEN"]
 geminibot = {}
 bot_timer = {}
@@ -67,6 +68,18 @@ def proc_msg(evt) :
 
     return reply
 
+def push_message(msg) :
+    with ApiClient(configuration) as api_client:
+        line_bot_api = MessagingApi(api_client)
+
+        line_bot_api.push_message(
+            PushMessageRequest(
+                to=line_userid,
+                messages=[TextMessage(text=msg)]
+            )
+        )
+
+
 def shutdown_bot(evt) :
     global geminibot
 
@@ -74,6 +87,7 @@ def shutdown_bot(evt) :
 
     if bothash in geminibot and geminibot[bothash] :
         app.logger.info("shutdown bot geminibot[" + bothash + "]")
+        #push_message("shutdown bot")
         del(geminibot[bothash])
         geminibot[bothash] = None
 
@@ -112,7 +126,7 @@ def handle_message(event):
         bothash = get_hash(event)
         if bothash in bot_timer and bot_timer[bothash] :
             bot_timer[bothash].cancel()
-        bot_timer[bothash] = Timer(900, shutdown_bot, (event,))
+        bot_timer[bothash] = Timer(300, shutdown_bot, (event,))
         bot_timer[bothash].start()
 
 if __name__ == "__main__":
