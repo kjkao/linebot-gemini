@@ -14,6 +14,7 @@ from linebot.v3.messaging import Configuration, ApiClient, MessagingApi, ReplyMe
 from linebot.v3.webhooks import MessageEvent, TextMessageContent
 
 app = Flask(__name__)
+BOT_TIMEOUT = 900
 
 line_secret = os.environ["LINE_BOT_SECRET"]
 line_userid = os.environ["LINE_BOT_USERID"]
@@ -126,7 +127,7 @@ def handle_message(event):
         bothash = get_hash(event)
         if bothash in bot_timer and bot_timer[bothash] :
             bot_timer[bothash].cancel()
-        bot_timer[bothash] = Timer(300, shutdown_bot, (event,))
+        bot_timer[bothash] = Timer(BOT_TIMEOUT, shutdown_bot, (event,))
         bot_timer[bothash].start()
 
 if __name__ == "__main__":
