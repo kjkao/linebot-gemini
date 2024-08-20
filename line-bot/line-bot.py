@@ -146,14 +146,28 @@ def proc_msg(evt) :
 
     return reply, emjs
 
-def push_message(txt) :
+def push_message(evt, txt) :
+    if evt.source.type == 'user' :
+        to_id = evt.source.user_id
+    else :
+        to_id = evt.source.group_id
+
     with ApiClient(configuration) as api_client:
         line_bot_api = MessagingApi(api_client)
-
         line_bot_api.push_message(
             PushMessageRequest(
-                to=line_userid,
+                to=to_id,
                 messages=[TextMessage(text=txt)]
+            )
+        )
+
+def reply_message(evt, txtmsg) :
+    with ApiClient(configuration) as api_client:
+        line_bot_api = MessagingApi(api_client)
+        line_bot_api.reply_message_with_http_info(
+            ReplyMessageRequest(
+                reply_token=evt.reply_token,
+                messages=[txtmsg]
             )
         )
 
@@ -174,7 +188,7 @@ def shutdown_bot(evt) :
 
     if bothash in geminibot and geminibot[bothash] :
         app.logger.info("shutdown bot geminibot[" + bothash + "]")
-        #push_message("shutdown bot")
+        push_message(evt, "shutdown bot")
         del(geminibot[bothash])
         geminibot[bothash] = None
 
@@ -199,25 +213,18 @@ def callback():
 @handler.add(MessageEvent, message=TextMessageContent)
 def handle_message(event):
     global bot_timer
-    with ApiClient(configuration) as api_client:
 
-        (reply, emjs) = proc_msg(event)
-        if reply :
-            line_bot_api = MessagingApi(api_client)
-            line_bot_api.reply_message_with_http_info(
-                ReplyMessageRequest(
-                    reply_token=event.reply_token,
-                    messages=[TextMessage(text=reply, emojis=emjs)]
-                )
-            )
+    (reply, emjs) = proc_msg(event)
+    if reply :
+        reply_message(event, TextMessage(text=reply, emojis=emjs))
 
-        bothash = get_hash(event.source)
-        if bothash in bot_timer and bot_timer[bothash] :
-            bot_timer[bothash].cancel()
-        bot_timer[bothash] = Timer(BOT_TIMEOUT, shutdown_bot, (event,))
-        bot_timer[bothash].start()
+    bothash = get_hash(event.source)
+    if bothash in bot_timer and bot_timer[bothash] :
+        bot_timer[bothash].cancel()
+    bot_timer[bothash] = Timer(BOT_TIMEOUT, shutdown_bot, (event,))
+    bot_timer[bothash].start()
 
-        fetch_user_profile(event.source)
+    fetch_user_profile(event.source)
 
 if __name__ == "__main__":
     app.run(host='localhost', port=8080, debug=True)
