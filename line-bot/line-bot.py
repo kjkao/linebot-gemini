@@ -23,6 +23,7 @@ access_token = os.environ["LINE_BOT_TOKEN"]
 geminibot = {}
 bot_timer = {}
 bot_hint = {}
+user_profile = {}
 auto_reply = reply.AutoReplyManager()
 
 configuration = Configuration(access_token=access_token)
@@ -40,13 +41,13 @@ def chat_mode(txt) :
 
     return bot
 
-def get_hash(evt) :
+def get_hash(src, stype='') :
     bothash = 'defbot'
 
-    if evt.source.type == 'user' :
-        bothash = evt.source.user_id[:6]
-    elif evt.source.type == 'group' :
-        bothash = evt.source.group_id[:6]
+    if src.type == 'user' or stype == 'user' :
+        bothash = src.user_id[:6]
+    elif src.type == 'group' or stype == 'group' :
+        bothash = src.group_id[:6]
 
     return bothash
 
@@ -119,7 +120,7 @@ def proc_msg(evt) :
     global bot_hint
     global auto_reply
 
-    bothash = get_hash(evt)
+    bothash = get_hash(evt.source)
     reply = None
     emjs = None
 
@@ -156,11 +157,20 @@ def push_message(txt) :
             )
         )
 
+def fetch_user_profile(src) :
+    global user_profile
+    uhash = get_hash(src, 'user')
+    if uhash not in user_profile :
+        with ApiClient(configuration) as api_client:
+            line_bot_api = MessagingApi(api_client)
+
+            user_profile[uhash] = line_bot_api.get_profile(user_id=src.user_id)
+            print(user_profile[uhash], flush=True)
 
 def shutdown_bot(evt) :
     global geminibot
 
-    bothash = get_hash(evt)
+    bothash = get_hash(evt.source)
 
     if bothash in geminibot and geminibot[bothash] :
         app.logger.info("shutdown bot geminibot[" + bothash + "]")
@@ -201,11 +211,13 @@ def handle_message(event):
                 )
             )
 
-        bothash = get_hash(event)
+        bothash = get_hash(event.source)
         if bothash in bot_timer and bot_timer[bothash] :
             bot_timer[bothash].cancel()
         bot_timer[bothash] = Timer(BOT_TIMEOUT, shutdown_bot, (event,))
         bot_timer[bothash].start()
+
+        fetch_user_profile(event.source)
 
 if __name__ == "__main__":
     app.run(host='localhost', port=8080, debug=True)
