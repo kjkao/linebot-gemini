@@ -13,9 +13,20 @@ from linebot.v3 import WebhookHandler
 from linebot.v3.exceptions import InvalidSignatureError
 from linebot.v3.messaging import Configuration, ApiClient, MessagingApi, ReplyMessageRequest, PushMessageRequest, TextMessage
 from linebot.v3.webhooks import MessageEvent, TextMessageContent
+from werkzeug.middleware.proxy_fix import ProxyFix
+from werkzeug.serving import WSGIRequestHandler
 
 app = Flask(__name__)
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1)
 BOT_TIMEOUT = 900
+
+class ProxyAwareRequestHandler(WSGIRequestHandler):
+    def address_string(self):
+        # Use the first client IP from X-Forwarded-For when behind reverse proxy.
+        xff = self.headers.get('X-Forwarded-For', '')
+        if xff:
+            return xff.split(',')[0].strip()
+        return self.client_address[0]
 
 line_secret = os.environ["LINE_BOT_SECRET"]
 line_userid = os.environ["LINE_BOT_USERID"]
@@ -227,5 +238,5 @@ def handle_message(event):
     fetch_user_profile(event.source)
 
 if __name__ == "__main__":
-    app.run(host='localhost', port=8080, debug=True)
+    app.run(host='localhost', port=8080, debug=True, request_handler=ProxyAwareRequestHandler)
 

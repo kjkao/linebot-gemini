@@ -1,10 +1,11 @@
 import os
+import time
 from google import genai
 from google.genai import types
 import settings
 
 class ChatBot:
-    def __init__(self, model_name='gemini-2.5-flash', cfg=settings.chatcfg):
+    def __init__(self, model_name='gemini-3.5-flash', cfg=settings.chatcfg):
         self.api_key = os.environ.get('GEMINI_API_KEY')
         self.model_name = model_name
         self.system_instruction = cfg['system_instruction']
@@ -20,14 +21,27 @@ class ChatBot:
         )
 
     def send_message(self, message, prefix = 'mode:chatbot\n'):
-        resp = self.chat.send_message(message)
-        return prefix + resp.text
+        try:
+            resp = self.chat.send_message(message)
+            return prefix + resp.text
+        except Exception as err:
+            # Retry once after 3 seconds when Gemini is temporarily unavailable (503).
+            if '503' in str(err) and 'UNAVAILABLE' in str(err):
+                time.sleep(3)
+                try:
+                    resp = self.chat.send_message(message)
+                    return prefix + resp.text
+                except Exception as retry_err:
+                    if '503' in str(retry_err) and 'UNAVAILABLE' in str(retry_err):
+                        return prefix + 'Gemini service is busy. Retried once after 3 seconds and gave up.'
+                    raise
+            raise
 
     def greet(self):
         return 'change mode to Chatbot\n\n' + self.send_message('你好')
 
 class TransBot(ChatBot):
-    def __init__(self, model_name='gemini-2.5-flash', cfg=settings.transcfg):
+    def __init__(self, model_name='gemini-3.5-flash', cfg=settings.transcfg):
         super().__init__(model_name, cfg)
 
     def send_message(self, message, prefix = 'mode:translator\n'):
@@ -37,7 +51,7 @@ class TransBot(ChatBot):
         return 'change mode to Translator\n\n' + self.send_message('I can help to translate English and Chinese')
 
 class TeachBot(ChatBot):
-    def __init__(self, model_name='gemini-2.5-flash', cfg=settings.teachcfg):
+    def __init__(self, model_name='gemini-3.5-flash', cfg=settings.teachcfg):
         super().__init__(model_name, cfg)
 
     def send_message(self, message, prefix = 'mode:teacher\n'):
