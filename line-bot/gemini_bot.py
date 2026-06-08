@@ -1,16 +1,23 @@
 import os
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 import settings
 
 class ChatBot:
-    def __init__(self, model_name='gemini-1.5-flash', cfg=settings.chatcfg):
+    def __init__(self, model_name='gemini-2.5-flash', cfg=settings.chatcfg):
         self.api_key = os.environ.get('GEMINI_API_KEY')
         self.model_name = model_name
         self.system_instruction = cfg['system_instruction']
-        settings.generation_config['temperature'] = cfg['temperature']
-        genai.configure(api_key=self.api_key)
-        self.model = genai.GenerativeModel(model_name=self.model_name, safety_settings=settings.safety_settings, system_instruction=self.system_instruction, generation_config=settings.generation_config)
-        self.chat = self.model.start_chat(history=[])
+        gen_cfg = dict(settings.generation_config)
+        gen_cfg['temperature'] = cfg['temperature']
+        gen_cfg['system_instruction'] = self.system_instruction
+        gen_cfg['safety_settings'] = settings.safety_settings
+
+        self.client = genai.Client(api_key=self.api_key)
+        self.chat = self.client.chats.create(
+            model=self.model_name,
+            config=types.GenerateContentConfig(**gen_cfg),
+        )
 
     def send_message(self, message, prefix = 'mode:chatbot\n'):
         resp = self.chat.send_message(message)
@@ -20,7 +27,7 @@ class ChatBot:
         return 'change mode to Chatbot\n\n' + self.send_message('你好')
 
 class TransBot(ChatBot):
-    def __init__(self, model_name='gemini-1.5-flash', cfg=settings.transcfg):
+    def __init__(self, model_name='gemini-2.5-flash', cfg=settings.transcfg):
         super().__init__(model_name, cfg)
 
     def send_message(self, message, prefix = 'mode:translator\n'):
@@ -30,7 +37,7 @@ class TransBot(ChatBot):
         return 'change mode to Translator\n\n' + self.send_message('I can help to translate English and Chinese')
 
 class TeachBot(ChatBot):
-    def __init__(self, model_name='gemini-1.5-flash', cfg=settings.teachcfg):
+    def __init__(self, model_name='gemini-2.5-flash', cfg=settings.teachcfg):
         super().__init__(model_name, cfg)
 
     def send_message(self, message, prefix = 'mode:teacher\n'):

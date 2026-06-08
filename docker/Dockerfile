@@ -9,7 +9,7 @@ RUN useradd -m -u $UID -g $GID -o -s /bin/bash $UNAME
 
 RUN apt-get update
 RUN apt-get -y install vim cron net-tools
-RUN pip install line-bot-sdk flask google-generativeai
+RUN pip install line-bot-sdk flask google-genai
 
 EXPOSE 8080
 USER $UNAME
